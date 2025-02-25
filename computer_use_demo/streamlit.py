@@ -5,6 +5,7 @@ Entrypoint for streamlit, see https://docs.streamlit.io/
 import asyncio
 import base64
 import os
+import random
 import subprocess
 import traceback
 from contextlib import contextmanager
@@ -30,6 +31,19 @@ from computer_use_demo.loop import (
     sampling_loop,
 )
 from computer_use_demo.tools import ToolResult, ToolVersion
+
+# Import the bridge functions
+try:
+    from computer_use_demo.api.utils.streamlit_bridge import (
+        cleanup_old_commands,
+        get_pending_commands,
+        mark_command_as_completed,
+        mark_command_as_processing,
+    )
+
+    BRIDGE_AVAILABLE = True
+except ImportError:
+    BRIDGE_AVAILABLE = False
 
 PROVIDER_TO_DEFAULT_MODEL_NAME: dict[APIProvider, str] = {
     APIProvider.ANTHROPIC: "claude-3-7-sonnet-20250219",
@@ -126,6 +140,10 @@ def setup_state():
         st.session_state.token_efficient_tools_beta = False
     if "in_sampling_loop" not in st.session_state:
         st.session_state.in_sampling_loop = False
+    if "api_commands" not in st.session_state:
+        st.session_state.api_commands = {}
+    if "last_api_check" not in st.session_state:
+        st.session_state.last_api_check = datetime.now() - timedelta(seconds=10)
 
 
 def _reset_model():
@@ -158,6 +176,11 @@ async def main():
 
     if not os.getenv("HIDE_WARNING", False):
         st.warning(WARNING_TEXT)
+
+    # Check for API commands periodically
+    if datetime.now() - st.session_state.last_api_check > timedelta(seconds=2):
+        check_api_commands()
+        st.session_state.last_api_check = datetime.now()
 
     with st.sidebar:
 
@@ -316,6 +339,9 @@ async def main():
                 else None,
                 token_efficient_tools_beta=st.session_state.token_efficient_tools_beta,
             )
+
+            # Update API command status after sampling loop completes
+            update_api_command_status()
 
 
 def maybe_add_interruption_blocks():
@@ -500,6 +526,103 @@ def _render_message(
                 raise Exception(f'Unexpected response type {message["type"]}')
         else:
             st.markdown(message)
+
+
+# Add function to check for API commands
+def check_api_commands():
+    """Check for pending API commands and process them."""
+    if not BRIDGE_AVAILABLE:
+        return
+
+    try:
+        # Get pending commands
+        pending_commands = get_pending_commands()
+        for command in pending_commands:
+            # Mark as processing to prevent double processing
+            mark_command_as_processing(command["id"])
+
+            # Add to Streamlit's message queue
+            st.session_state.messages.append(
+                {
+                    "role": Sender.USER,
+                    "content": [
+                        BetaTextBlockParam(type="text", text=command["message"])
+                    ],
+                }
+            )
+
+            # Save command ID for tracking results
+            st.session_state.api_commands[command["id"]] = {
+                "status": "queued",
+                "message": command["message"],
+                "timestamp": datetime.now().isoformat(),
+            }
+
+            # Show a message about the API command
+            st.toast(f"Processing API command: {command['id'][:8]}...")
+
+        # Clean up old commands periodically
+        if random.random() < 0.1:  # 10% chance on each check
+            cleanup_old_commands(hours=24)
+
+        # Force a UI refresh if we have new commands
+        if pending_commands:
+            st.experimental_rerun()
+    except Exception as e:
+        st.error(f"Error checking API commands: {str(e)}")
+
+
+# Add function to update command status after processing
+def update_api_command_status():
+    """Update status of API commands that have been processed."""
+    if not BRIDGE_AVAILABLE:
+        return
+
+    if "api_commands" in st.session_state:
+        api_commands = st.session_state.api_commands.copy()
+        for cmd_id, cmd_info in api_commands.items():
+            if cmd_info["status"] == "queued":
+                try:
+                    # Find the response (assuming last message is the response)
+                    response_content = st.session_state.messages[-1]["content"]
+
+                    # Extract text responses
+                    text_responses = []
+                    screenshots = []
+
+                    # Process content blocks
+                    if isinstance(response_content, list):
+                        for block in response_content:
+                            if isinstance(block, dict) and block["type"] == "text":
+                                text_responses.append(block["text"])
+                            elif (
+                                isinstance(block, dict)
+                                and block["type"] == "tool_result"
+                            ):
+                                tool_id = block.get("tool_use_id")
+                                if tool_id in st.session_state.tools:
+                                    tool_result = st.session_state.tools[tool_id]
+                                    if (
+                                        hasattr(tool_result, "base64_image")
+                                        and tool_result.base64_image
+                                    ):
+                                        screenshots.append(tool_result.base64_image)
+
+                    # Update the command status
+                    result = {
+                        "text_response": "\n\n".join(text_responses),
+                        "screenshots": screenshots,
+                        "completed_at": datetime.now().isoformat(),
+                    }
+
+                    # Mark command as completed
+                    mark_command_as_completed(cmd_id, result)
+
+                    # Update local tracking
+                    st.session_state.api_commands[cmd_id]["status"] = "completed"
+                    st.toast(f"API command completed: {cmd_id[:8]}")
+                except Exception as e:
+                    st.error(f"Error updating API command status: {str(e)}")
 
 
 if __name__ == "__main__":

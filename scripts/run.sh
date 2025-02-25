@@ -3,6 +3,8 @@
 # Move to project root directory (parent of scripts directory)
 cd "$(dirname "$0")/.."
 
+./scripts/setup.sh
+
 # Exit on error
 set -e
 
@@ -38,6 +40,7 @@ docker run \
     -p 8501:8501 \
     -p 6080:6080 \
     -p 8080:8080 \
+    -p 7500:7500 \
     -it computer-use-demo:local
 
 echo "Container stopped."
