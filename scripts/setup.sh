@@ -1,4 +1,8 @@
 #!/bin/bash
+
+# Move to project root directory (parent of scripts directory)
+cd "$(dirname "$0")/.."
+
 PYTHON_MINOR_VERSION=$(python3 --version | awk -F. '{print $2}')
 
 if [ "$PYTHON_MINOR_VERSION" -gt 12 ]; then
