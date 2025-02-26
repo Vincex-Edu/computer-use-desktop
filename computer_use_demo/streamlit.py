@@ -81,18 +81,68 @@ CONFIG_DIR = PosixPath("~/.anthropic").expanduser()
 API_KEY_FILE = CONFIG_DIR / "api_key"
 STREAMLIT_STYLE = """
 <style>
-    /* Highlight the stop button in red */
+    /* Main title styling */
+    h1 {
+        color: #1E88E5;
+        font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+        font-weight: 600;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid #E3F2FD;
+    }
+
+    /* Sidebar improvements */
+    .css-1d391kg {
+        background-color: #F8F9FA;
+    }
+
+    /* Input fields styling */
+    .stTextInput > div > div > input {
+        border-radius: 8px;
+    }
+
+    /* Button styling */
     button[kind=header] {
-        background-color: rgb(255, 75, 75);
-        border: 1px solid rgb(255, 75, 75);
-        color: rgb(255, 255, 255);
+        background-color: #DC3545;
+        border: 1px solid #DC3545;
+        color: white;
+        border-radius: 8px;
+        transition: all 0.3s ease;
     }
+
     button[kind=header]:hover {
-        background-color: rgb(255, 51, 51);
+        background-color: #C82333;
+        border-color: #BD2130;
+        transform: translateY(-1px);
     }
-     /* Hide the streamlit deploy button */
+
+    /* Radio button improvements */
+    .stRadio > label {
+        font-weight: 500;
+        color: #2C3E50;
+    }
+
+    /* Checkbox styling */
+    .stCheckbox > label {
+        font-weight: 500;
+        color: #2C3E50;
+    }
+
+    /* Hide the streamlit deploy button */
     .stAppDeployButton {
         visibility: hidden;
+    }
+
+    /* Chat message styling */
+    .stChatMessage {
+        background-color: #F8F9FA;
+        border-radius: 12px;
+        padding: 1rem;
+        margin: 0.5rem 0;
+    }
+
+    /* Warning message styling */
+    .stAlert {
+        border-radius: 8px;
     }
 </style>
 """
@@ -172,7 +222,7 @@ async def main():
 
     st.markdown(STREAMLIT_STYLE, unsafe_allow_html=True)
 
-    st.title("Claude Computer Use Demo")
+    st.title("CUA.so desktop")
 
     if not os.getenv("HIDE_WARNING", False):
         st.warning(WARNING_TEXT)
