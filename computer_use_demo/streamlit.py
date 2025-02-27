@@ -95,6 +95,15 @@ STREAMLIT_STYLE = """
         background-color: #F8F9FA;
     }
 
+    /* Keep sidebar collapsed by default */
+    [data-testid="collapsedControl"] {
+        display: none;
+    }
+
+    section[data-testid="stSidebar"][aria-expanded="true"] {
+        display: none;
+    }
+
     /* Input fields styling */
     .stTextInput > div > div > input {
         border-radius: 8px;
